@@ -1,0 +1,1 @@
+export default function Login(){return <main className='container section'><h1>Admin Login</h1><form method='post' action='/api/admin/login'><input name='user' placeholder='Username' required/><input type='password' name='pass' placeholder='Password' required/><button className='btn' type='submit'>Login</button></form></main>}

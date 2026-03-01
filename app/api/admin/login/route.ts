@@ -1,0 +1,2 @@
+import { NextResponse } from 'next/server';
+export async function POST(req:Request){const form=Object.fromEntries(await req.formData()); if(form.user===process.env.ADMIN_USER&&form.pass===process.env.ADMIN_PASS){const res=NextResponse.redirect(new URL('/admin/dashboard',req.url)); res.cookies.set('admin_session','1',{httpOnly:true,secure:true,sameSite:'lax'}); return res;} return NextResponse.redirect(new URL('/admin/login?error=1',req.url));}
