@@ -203,6 +203,22 @@
             <input id="workingDays" type="number" value="22" min="0" step="1" />
           </div>
         </div>
+
+        <div class="row">
+          <div>
+            <label for="currency">Currency</label>
+            <select id="currency">
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+              <option value="INR">INR</option>
+              <option value="AED">AED</option>
+            </select>
+          </div>
+          <div>
+            <label for="targetMargin">Target Profit Margin (%)</label>
+            <input id="targetMargin" type="number" value="15" min="0" step="0.1" />
+          </div>
+        </div>
       </section>
 
       <section class="card">
@@ -269,6 +285,20 @@
           <input id="overheadsPercent" type="number" value="5" min="0" step="0.01" />
         </div>
       </div>
+
+      <h3 style="margin-top: 14px;">One-time Project Expenses</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Expense Item</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody id="oneTimeTable"></tbody>
+        </table>
+      </div>
+      <button class="btn" id="addExpenseBtn" type="button">Add One-time Expense</button>
       <button class="btn" id="calculateBtn" type="button">Calculate Viability</button>
     </section>
 
@@ -281,8 +311,27 @@
         <div class="kpi"><div class="name">Profit / Loss</div><div id="profitLoss" class="val">-</div></div>
         <div class="kpi"><div class="name">Profit Margin</div><div id="profitMargin" class="val">-</div></div>
         <div class="kpi"><div class="name">Break-even MEP Fee</div><div id="breakevenFee" class="val">-</div></div>
+        <div class="kpi"><div class="name">MEP Fee for Target Margin</div><div id="targetFee" class="val">-</div></div>
       </div>
       <div id="viabilityStatus" class="status warn">Run calculation to evaluate viability.</div>
+      <div class="row" style="margin-top: 10px;">
+        <div>
+          <label for="scenarioName">Scenario Name</label>
+          <input id="scenarioName" type="text" value="Base Case" />
+        </div>
+        <div>
+          <label for="scenarioSelect">Saved Scenarios</label>
+          <select id="scenarioSelect"></select>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn" id="saveScenarioBtn" type="button">Save Scenario</button>
+        <button class="btn" id="loadScenarioBtn" type="button">Load Scenario</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="deleteScenarioBtn" type="button">Delete Scenario</button>
+        <button class="btn" id="exportCsvBtn" type="button">Export Summary CSV</button>
+      </div>
     </section>
   </div>
 
@@ -293,12 +342,20 @@
       { role: 'Draughtsman', count: 2, basis: 'monthly', rate: 1500, shiftHours: 9 },
       { role: 'Office Staff', count: 1, basis: 'monthly', rate: 1200, shiftHours: 9 }
     ];
+    const defaultOneTimeExpenses = [
+      { item: 'Software/License Setup', amount: 2500 },
+      { item: 'Site Mobilization', amount: 1500 }
+    ];
 
     const staffTable = document.getElementById('staffTable');
+    const oneTimeTable = document.getElementById('oneTimeTable');
+    const scenarioKey = 'mep_viability_scenarios_v1';
+    let lastSummary = null;
 
     const fmtMoney = (num) => {
       if (!Number.isFinite(num)) return '-';
-      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num);
+      const currency = document.getElementById('currency').value || 'USD';
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(num);
     };
 
     const fmtPct = (num) => Number.isFinite(num) ? `${num.toFixed(2)}%` : '-';
@@ -323,13 +380,135 @@
       staffTable.appendChild(tr);
     };
 
+    const createOneTimeExpenseRow = (data = { item: '', amount: 0 }) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input type="text" value="${data.item}" class="expenseItem" /></td>
+        <td><input type="number" min="0" step="0.01" value="${data.amount}" class="expenseAmount" /></td>
+      `;
+      oneTimeTable.appendChild(tr);
+    };
+
     defaultRoles.forEach(createRoleRow);
+    defaultOneTimeExpenses.forEach(createOneTimeExpenseRow);
 
     document.getElementById('addRoleBtn').addEventListener('click', () => createRoleRow());
+    document.getElementById('addExpenseBtn').addEventListener('click', () => createOneTimeExpenseRow());
     document.getElementById('calculateBtn').addEventListener('click', calculate);
+    document.getElementById('saveScenarioBtn').addEventListener('click', saveScenario);
+    document.getElementById('loadScenarioBtn').addEventListener('click', loadScenario);
+    document.getElementById('deleteScenarioBtn').addEventListener('click', deleteScenario);
+    document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
 
     function getNum(id) {
       return parseFloat(document.getElementById(id).value) || 0;
+    }
+
+    function collectInputs() {
+      return {
+        area: getNum('area'),
+        costMode: document.getElementById('costMode').value,
+        constructionCost: getNum('constructionCost'),
+        mepFee: getNum('mepFee'),
+        duration: getNum('duration'),
+        workingDays: getNum('workingDays'),
+        currency: document.getElementById('currency').value,
+        targetMargin: getNum('targetMargin'),
+        electrical: getNum('electrical'),
+        plumbing: getNum('plumbing'),
+        hvac: getNum('hvac'),
+        fire: getNum('fire'),
+        overheadsMonthly: getNum('overheadsMonthly'),
+        overheadsPercent: getNum('overheadsPercent'),
+        staff: Array.from(staffTable.querySelectorAll('tr')).map((row) => ({
+          role: row.querySelector('.role').value,
+          count: parseFloat(row.querySelector('.count').value) || 0,
+          basis: row.querySelector('.basis').value,
+          rate: parseFloat(row.querySelector('.rate').value) || 0,
+          shiftHours: parseFloat(row.querySelector('.shiftHours').value) || 0
+        })),
+        oneTime: Array.from(oneTimeTable.querySelectorAll('tr')).map((row) => ({
+          item: row.querySelector('.expenseItem').value,
+          amount: parseFloat(row.querySelector('.expenseAmount').value) || 0
+        }))
+      };
+    }
+
+    function fillInputs(data) {
+      const simple = ['area','constructionCost','mepFee','duration','workingDays','currency','targetMargin','electrical','plumbing','hvac','fire','overheadsMonthly','overheadsPercent'];
+      simple.forEach((id) => {
+        if (data[id] !== undefined) document.getElementById(id).value = data[id];
+      });
+      if (data.costMode) document.getElementById('costMode').value = data.costMode;
+
+      staffTable.innerHTML = '';
+      (data.staff || defaultRoles).forEach(createRoleRow);
+      oneTimeTable.innerHTML = '';
+      (data.oneTime || defaultOneTimeExpenses).forEach(createOneTimeExpenseRow);
+    }
+
+    function getScenarioStore() {
+      return JSON.parse(localStorage.getItem(scenarioKey) || '{}');
+    }
+
+    function setScenarioStore(store) {
+      localStorage.setItem(scenarioKey, JSON.stringify(store));
+    }
+
+    function refreshScenarioSelect() {
+      const select = document.getElementById('scenarioSelect');
+      const store = getScenarioStore();
+      const names = Object.keys(store);
+      select.innerHTML = names.map((n) => `<option value="${n}">${n}</option>`).join('');
+    }
+
+    function saveScenario() {
+      const name = document.getElementById('scenarioName').value.trim();
+      if (!name) return;
+      const store = getScenarioStore();
+      store[name] = collectInputs();
+      setScenarioStore(store);
+      refreshScenarioSelect();
+      document.getElementById('scenarioSelect').value = name;
+    }
+
+    function loadScenario() {
+      const name = document.getElementById('scenarioSelect').value;
+      const store = getScenarioStore();
+      if (!store[name]) return;
+      fillInputs(store[name]);
+      document.getElementById('scenarioName').value = name;
+      calculate();
+    }
+
+    function deleteScenario() {
+      const name = document.getElementById('scenarioSelect').value;
+      const store = getScenarioStore();
+      if (!store[name]) return;
+      delete store[name];
+      setScenarioStore(store);
+      refreshScenarioSelect();
+    }
+
+    function exportCsv() {
+      if (!lastSummary) return;
+      const rows = [
+        ['Metric', 'Value'],
+        ['Project Cost', lastSummary.projectCost],
+        ['MEP Revenue', lastSummary.mepRevenue],
+        ['Total Expenses', lastSummary.totalExpenses],
+        ['Profit/Loss', lastSummary.profitLoss],
+        ['Profit Margin (%)', lastSummary.profitMargin.toFixed(2)],
+        ['Break-even MEP Fee (%)', lastSummary.breakevenFee.toFixed(2)],
+        ['Target MEP Fee (%)', lastSummary.targetFee.toFixed(2)]
+      ];
+      const csv = rows.map((r) => r.join(',')).join('\\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'mep-viability-summary.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
     }
 
     function calculate() {
@@ -339,6 +518,7 @@
       const mepFeePct = getNum('mepFee');
       const duration = getNum('duration');
       const workingDays = getNum('workingDays');
+      const targetMargin = getNum('targetMargin');
 
       const projectCost = costMode === 'perSqm' ? area * constructionCostInput : constructionCostInput;
       const mepRevenue = projectCost * (mepFeePct / 100);
@@ -389,14 +569,18 @@
 
       const overheadsMonthly = getNum('overheadsMonthly');
       const overheadsPercent = getNum('overheadsPercent');
+      const oneTimeExpenses = Array.from(oneTimeTable.querySelectorAll('.expenseAmount'))
+        .reduce((sum, el) => sum + (parseFloat(el.value) || 0), 0);
 
       const monthlyOverheadsCost = overheadsMonthly * duration;
       const percentOverheadsCost = staffingCost * (overheadsPercent / 100);
-      const totalExpenses = staffingCost + monthlyOverheadsCost + percentOverheadsCost;
+      const totalExpenses = staffingCost + monthlyOverheadsCost + percentOverheadsCost + oneTimeExpenses;
 
       const profitLoss = mepRevenue - totalExpenses;
       const profitMargin = mepRevenue > 0 ? (profitLoss / mepRevenue) * 100 : 0;
       const breakevenFee = projectCost > 0 ? (totalExpenses / projectCost) * 100 : 0;
+      const marginFactor = 1 - (targetMargin / 100);
+      const targetFee = (projectCost > 0 && marginFactor > 0) ? (totalExpenses / marginFactor) / projectCost * 100 : 0;
 
       document.getElementById('projectCost').textContent = fmtMoney(projectCost);
       document.getElementById('mepRevenue').textContent = fmtMoney(mepRevenue);
@@ -404,6 +588,7 @@
       document.getElementById('profitLoss').textContent = fmtMoney(profitLoss);
       document.getElementById('profitMargin').textContent = fmtPct(profitMargin);
       document.getElementById('breakevenFee').textContent = fmtPct(breakevenFee);
+      document.getElementById('targetFee').textContent = fmtPct(targetFee);
 
       const status = document.getElementById('viabilityStatus');
       if (profitLoss > 0 && profitMargin >= 15) {
@@ -416,8 +601,11 @@
         status.className = 'status bad';
         status.textContent = '❌ Not viable: Expenses exceed MEP revenue.';
       }
+
+      lastSummary = { projectCost, mepRevenue, totalExpenses, profitLoss, profitMargin, breakevenFee, targetFee };
     }
 
+    refreshScenarioSelect();
     calculate();
   </script>
 </body>
