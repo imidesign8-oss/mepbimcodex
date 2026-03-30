@@ -1,0 +1,612 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MEP Project Viability Calculator</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #121b2c;
+      --muted: #8ea1c5;
+      --text: #e8eefc;
+      --accent: #5aa2ff;
+      --good: #1dbf73;
+      --warn: #ffb020;
+      --bad: #ff5d5d;
+      --border: #23314d;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Segoe UI, Roboto, Arial, sans-serif;
+      background: linear-gradient(180deg, #0a1222 0%, #0b1220 100%);
+      color: var(--text);
+      line-height: 1.4;
+    }
+    .container {
+      max-width: 1280px;
+      margin: 24px auto;
+      padding: 0 16px 32px;
+    }
+    h1, h2, h3 { margin: 0 0 10px; }
+    .sub { color: var(--muted); margin-bottom: 20px; }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      color: #c9d7f5;
+      margin-bottom: 4px;
+    }
+
+    input, select, button {
+      width: 100%;
+      background: #0d1628;
+      border: 1px solid #304267;
+      color: var(--text);
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 14px;
+      min-width: 0;
+    }
+
+    .row {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(2, 1fr);
+      margin-bottom: 10px;
+    }
+
+    .row-4 {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      margin-bottom: 10px;
+      align-items: end;
+    }
+
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-top: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      min-width: 720px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--border);
+      padding: 8px;
+      text-align: left;
+      white-space: normal;
+      word-break: break-word;
+      vertical-align: top;
+    }
+    th { color: #c4d4f6; font-weight: 600; }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .kpi {
+      background: #0d1628;
+      border: 1px solid #2a3c60;
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .kpi .name { color: var(--muted); font-size: 12px; }
+    .kpi .val { font-size: 20px; font-weight: 700; margin-top: 3px; }
+
+    .btn {
+      cursor: pointer;
+      border: 1px solid #3d63a0;
+      background: linear-gradient(180deg, #2f5ea8, #274f90);
+      font-weight: 600;
+      margin-top: 6px;
+    }
+
+    .status {
+      font-weight: 700;
+      padding: 10px;
+      border-radius: 8px;
+      text-align: center;
+      margin-top: 10px;
+    }
+
+    .status.good { background: rgba(29, 191, 115, .15); color: #6ce5ac; border: 1px solid rgba(29, 191, 115, .4); }
+    .status.warn { background: rgba(255, 176, 32, .15); color: #ffd07c; border: 1px solid rgba(255, 176, 32, .4); }
+    .status.bad { background: rgba(255, 93, 93, .15); color: #ff9393; border: 1px solid rgba(255, 93, 93, .4); }
+
+    .small { font-size: 12px; color: var(--muted); }
+
+    .table-wrap input,
+    .table-wrap select {
+      min-width: 110px;
+      font-size: 13px;
+      padding: 8px;
+    }
+
+    @media (max-width: 760px) {
+      .row-4 { grid-template-columns: 1fr; }
+      .row { grid-template-columns: 1fr; }
+      .container { padding: 0 10px 24px; }
+      .card { padding: 12px; }
+      h1 { font-size: 24px; }
+      h2 { font-size: 18px; }
+      table { min-width: 640px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>MEP Project Viability Calculator</h1>
+    <div class="sub">Estimate MEP fee revenue, discipline split, staffing cost, and project viability (profit/loss).</div>
+
+    <div class="grid">
+      <section class="card">
+        <h2>1) Project Inputs</h2>
+        <div class="row">
+          <div>
+            <label for="area">Project Area (Sqm)</label>
+            <input id="area" type="number" value="10000" min="0" step="0.01" />
+          </div>
+          <div>
+            <label for="costMode">Construction Cost Type</label>
+            <select id="costMode">
+              <option value="perSqm">Cost per Sqm</option>
+              <option value="total">Total Construction Cost</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="constructionCost">Construction Cost</label>
+            <input id="constructionCost" type="number" value="1500" min="0" step="0.01" />
+          </div>
+          <div>
+            <label for="mepFee">MEP Fee (%)</label>
+            <input id="mepFee" type="number" value="2.5" min="0" step="0.01" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="duration">Project Duration (months)</label>
+            <input id="duration" type="number" value="8" min="0" step="0.1" />
+          </div>
+          <div>
+            <label for="workingDays">Working Days / Month</label>
+            <input id="workingDays" type="number" value="22" min="0" step="1" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="currency">Currency</label>
+            <select id="currency">
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+              <option value="INR">INR</option>
+              <option value="AED">AED</option>
+            </select>
+          </div>
+          <div>
+            <label for="targetMargin">Target Profit Margin (%)</label>
+            <input id="targetMargin" type="number" value="15" min="0" step="0.1" />
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>2) Discipline Weightage (%)</h2>
+        <div class="row">
+          <div>
+            <label for="electrical">Electrical</label>
+            <input id="electrical" type="number" value="30" min="0" step="0.1" />
+          </div>
+          <div>
+            <label for="plumbing">Plumbing</label>
+            <input id="plumbing" type="number" value="20" min="0" step="0.1" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="hvac">HVAC</label>
+            <input id="hvac" type="number" value="35" min="0" step="0.1" />
+          </div>
+          <div>
+            <label for="fire">Firefighting</label>
+            <input id="fire" type="number" value="15" min="0" step="0.1" />
+          </div>
+        </div>
+        <div id="weightageMessage" class="small"></div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Discipline</th><th>Weightage</th><th>Fee Allocation</th></tr></thead>
+            <tbody id="disciplineTable"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top: 16px;">
+      <h2>3) Project Expenses (Staffing + Overheads)</h2>
+      <div class="small">Each role can be charged hourly, daily, weekly, or monthly. Hourly uses shift hours/day.</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Role</th>
+              <th>No. of Employees</th>
+              <th>Payment Basis</th>
+              <th>Rate (per basis)</th>
+              <th>Shift Hours/Day (for hourly)</th>
+              <th>Total Cost</th>
+            </tr>
+          </thead>
+          <tbody id="staffTable"></tbody>
+        </table>
+      </div>
+
+      <button class="btn" id="addRoleBtn" type="button">Add Role</button>
+
+      <div class="row" style="margin-top: 12px;">
+        <div>
+          <label for="overheadsMonthly">Overheads per Month</label>
+          <input id="overheadsMonthly" type="number" value="5000" min="0" step="0.01" />
+        </div>
+        <div>
+          <label for="overheadsPercent">Additional Overheads (% of staffing cost)</label>
+          <input id="overheadsPercent" type="number" value="5" min="0" step="0.01" />
+        </div>
+      </div>
+
+      <h3 style="margin-top: 14px;">One-time Project Expenses</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Expense Item</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody id="oneTimeTable"></tbody>
+        </table>
+      </div>
+      <button class="btn" id="addExpenseBtn" type="button">Add One-time Expense</button>
+      <button class="btn" id="calculateBtn" type="button">Calculate Viability</button>
+    </section>
+
+    <section class="card" style="margin-top: 16px;">
+      <h2>4) Results</h2>
+      <div class="kpis">
+        <div class="kpi"><div class="name">Project Cost</div><div id="projectCost" class="val">-</div></div>
+        <div class="kpi"><div class="name">MEP Revenue</div><div id="mepRevenue" class="val">-</div></div>
+        <div class="kpi"><div class="name">Total Expenses</div><div id="totalExpenses" class="val">-</div></div>
+        <div class="kpi"><div class="name">Profit / Loss</div><div id="profitLoss" class="val">-</div></div>
+        <div class="kpi"><div class="name">Profit Margin</div><div id="profitMargin" class="val">-</div></div>
+        <div class="kpi"><div class="name">Break-even MEP Fee</div><div id="breakevenFee" class="val">-</div></div>
+        <div class="kpi"><div class="name">MEP Fee for Target Margin</div><div id="targetFee" class="val">-</div></div>
+      </div>
+      <div id="viabilityStatus" class="status warn">Run calculation to evaluate viability.</div>
+      <div class="row" style="margin-top: 10px;">
+        <div>
+          <label for="scenarioName">Scenario Name</label>
+          <input id="scenarioName" type="text" value="Base Case" />
+        </div>
+        <div>
+          <label for="scenarioSelect">Saved Scenarios</label>
+          <select id="scenarioSelect"></select>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn" id="saveScenarioBtn" type="button">Save Scenario</button>
+        <button class="btn" id="loadScenarioBtn" type="button">Load Scenario</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="deleteScenarioBtn" type="button">Delete Scenario</button>
+        <button class="btn" id="exportCsvBtn" type="button">Export Summary CSV</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const defaultRoles = [
+      { role: 'CAD Engineer', count: 2, basis: 'monthly', rate: 1800, shiftHours: 9 },
+      { role: 'MEP Engineer', count: 1, basis: 'monthly', rate: 3200, shiftHours: 9 },
+      { role: 'Draughtsman', count: 2, basis: 'monthly', rate: 1500, shiftHours: 9 },
+      { role: 'Office Staff', count: 1, basis: 'monthly', rate: 1200, shiftHours: 9 }
+    ];
+    const defaultOneTimeExpenses = [
+      { item: 'Software/License Setup', amount: 2500 },
+      { item: 'Site Mobilization', amount: 1500 }
+    ];
+
+    const staffTable = document.getElementById('staffTable');
+    const oneTimeTable = document.getElementById('oneTimeTable');
+    const scenarioKey = 'mep_viability_scenarios_v1';
+    let lastSummary = null;
+
+    const fmtMoney = (num) => {
+      if (!Number.isFinite(num)) return '-';
+      const currency = document.getElementById('currency').value || 'USD';
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(num);
+    };
+
+    const fmtPct = (num) => Number.isFinite(num) ? `${num.toFixed(2)}%` : '-';
+
+    const createRoleRow = (data = { role: '', count: 1, basis: 'monthly', rate: 0, shiftHours: 9 }) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input type="text" value="${data.role}" class="role" /></td>
+        <td><input type="number" min="0" step="1" value="${data.count}" class="count" /></td>
+        <td>
+          <select class="basis">
+            <option value="hourly" ${data.basis === 'hourly' ? 'selected' : ''}>Hourly</option>
+            <option value="daily" ${data.basis === 'daily' ? 'selected' : ''}>Daily</option>
+            <option value="weekly" ${data.basis === 'weekly' ? 'selected' : ''}>Weekly</option>
+            <option value="monthly" ${data.basis === 'monthly' ? 'selected' : ''}>Monthly</option>
+          </select>
+        </td>
+        <td><input type="number" min="0" step="0.01" value="${data.rate}" class="rate" /></td>
+        <td><input type="number" min="0" step="0.5" value="${data.shiftHours}" class="shiftHours" /></td>
+        <td class="rowCost">-</td>
+      `;
+      staffTable.appendChild(tr);
+    };
+
+    const createOneTimeExpenseRow = (data = { item: '', amount: 0 }) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input type="text" value="${data.item}" class="expenseItem" /></td>
+        <td><input type="number" min="0" step="0.01" value="${data.amount}" class="expenseAmount" /></td>
+      `;
+      oneTimeTable.appendChild(tr);
+    };
+
+    defaultRoles.forEach(createRoleRow);
+    defaultOneTimeExpenses.forEach(createOneTimeExpenseRow);
+
+    document.getElementById('addRoleBtn').addEventListener('click', () => createRoleRow());
+    document.getElementById('addExpenseBtn').addEventListener('click', () => createOneTimeExpenseRow());
+    document.getElementById('calculateBtn').addEventListener('click', calculate);
+    document.getElementById('saveScenarioBtn').addEventListener('click', saveScenario);
+    document.getElementById('loadScenarioBtn').addEventListener('click', loadScenario);
+    document.getElementById('deleteScenarioBtn').addEventListener('click', deleteScenario);
+    document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
+
+    function getNum(id) {
+      return parseFloat(document.getElementById(id).value) || 0;
+    }
+
+    function collectInputs() {
+      return {
+        area: getNum('area'),
+        costMode: document.getElementById('costMode').value,
+        constructionCost: getNum('constructionCost'),
+        mepFee: getNum('mepFee'),
+        duration: getNum('duration'),
+        workingDays: getNum('workingDays'),
+        currency: document.getElementById('currency').value,
+        targetMargin: getNum('targetMargin'),
+        electrical: getNum('electrical'),
+        plumbing: getNum('plumbing'),
+        hvac: getNum('hvac'),
+        fire: getNum('fire'),
+        overheadsMonthly: getNum('overheadsMonthly'),
+        overheadsPercent: getNum('overheadsPercent'),
+        staff: Array.from(staffTable.querySelectorAll('tr')).map((row) => ({
+          role: row.querySelector('.role').value,
+          count: parseFloat(row.querySelector('.count').value) || 0,
+          basis: row.querySelector('.basis').value,
+          rate: parseFloat(row.querySelector('.rate').value) || 0,
+          shiftHours: parseFloat(row.querySelector('.shiftHours').value) || 0
+        })),
+        oneTime: Array.from(oneTimeTable.querySelectorAll('tr')).map((row) => ({
+          item: row.querySelector('.expenseItem').value,
+          amount: parseFloat(row.querySelector('.expenseAmount').value) || 0
+        }))
+      };
+    }
+
+    function fillInputs(data) {
+      const simple = ['area','constructionCost','mepFee','duration','workingDays','currency','targetMargin','electrical','plumbing','hvac','fire','overheadsMonthly','overheadsPercent'];
+      simple.forEach((id) => {
+        if (data[id] !== undefined) document.getElementById(id).value = data[id];
+      });
+      if (data.costMode) document.getElementById('costMode').value = data.costMode;
+
+      staffTable.innerHTML = '';
+      (data.staff || defaultRoles).forEach(createRoleRow);
+      oneTimeTable.innerHTML = '';
+      (data.oneTime || defaultOneTimeExpenses).forEach(createOneTimeExpenseRow);
+    }
+
+    function getScenarioStore() {
+      return JSON.parse(localStorage.getItem(scenarioKey) || '{}');
+    }
+
+    function setScenarioStore(store) {
+      localStorage.setItem(scenarioKey, JSON.stringify(store));
+    }
+
+    function refreshScenarioSelect() {
+      const select = document.getElementById('scenarioSelect');
+      const store = getScenarioStore();
+      const names = Object.keys(store);
+      select.innerHTML = names.map((n) => `<option value="${n}">${n}</option>`).join('');
+    }
+
+    function saveScenario() {
+      const name = document.getElementById('scenarioName').value.trim();
+      if (!name) return;
+      const store = getScenarioStore();
+      store[name] = collectInputs();
+      setScenarioStore(store);
+      refreshScenarioSelect();
+      document.getElementById('scenarioSelect').value = name;
+    }
+
+    function loadScenario() {
+      const name = document.getElementById('scenarioSelect').value;
+      const store = getScenarioStore();
+      if (!store[name]) return;
+      fillInputs(store[name]);
+      document.getElementById('scenarioName').value = name;
+      calculate();
+    }
+
+    function deleteScenario() {
+      const name = document.getElementById('scenarioSelect').value;
+      const store = getScenarioStore();
+      if (!store[name]) return;
+      delete store[name];
+      setScenarioStore(store);
+      refreshScenarioSelect();
+    }
+
+    function exportCsv() {
+      if (!lastSummary) return;
+      const rows = [
+        ['Metric', 'Value'],
+        ['Project Cost', lastSummary.projectCost],
+        ['MEP Revenue', lastSummary.mepRevenue],
+        ['Total Expenses', lastSummary.totalExpenses],
+        ['Profit/Loss', lastSummary.profitLoss],
+        ['Profit Margin (%)', lastSummary.profitMargin.toFixed(2)],
+        ['Break-even MEP Fee (%)', lastSummary.breakevenFee.toFixed(2)],
+        ['Target MEP Fee (%)', lastSummary.targetFee.toFixed(2)]
+      ];
+      const csv = rows.map((r) => r.join(',')).join('\\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'mep-viability-summary.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function calculate() {
+      const area = getNum('area');
+      const costMode = document.getElementById('costMode').value;
+      const constructionCostInput = getNum('constructionCost');
+      const mepFeePct = getNum('mepFee');
+      const duration = getNum('duration');
+      const workingDays = getNum('workingDays');
+      const targetMargin = getNum('targetMargin');
+
+      const projectCost = costMode === 'perSqm' ? area * constructionCostInput : constructionCostInput;
+      const mepRevenue = projectCost * (mepFeePct / 100);
+
+      const weightages = [
+        { name: 'Electrical', val: getNum('electrical') },
+        { name: 'Plumbing', val: getNum('plumbing') },
+        { name: 'HVAC', val: getNum('hvac') },
+        { name: 'Firefighting', val: getNum('fire') }
+      ];
+
+      const totalWeight = weightages.reduce((s, w) => s + w.val, 0);
+      const weightageMessage = document.getElementById('weightageMessage');
+      if (Math.abs(totalWeight - 100) > 0.01) {
+        weightageMessage.textContent = `Weightage total is ${totalWeight.toFixed(2)}%. It should be 100%.`; 
+        weightageMessage.style.color = 'var(--warn)';
+      } else {
+        weightageMessage.textContent = 'Weightage totals 100%.';
+        weightageMessage.style.color = 'var(--good)';
+      }
+
+      const disciplineTable = document.getElementById('disciplineTable');
+      disciplineTable.innerHTML = '';
+      weightages.forEach((w) => {
+        const fee = mepRevenue * (w.val / 100);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${w.name}</td><td>${fmtPct(w.val)}</td><td>${fmtMoney(fee)}</td>`;
+        disciplineTable.appendChild(tr);
+      });
+
+      const rows = Array.from(staffTable.querySelectorAll('tr'));
+      let staffingCost = 0;
+      rows.forEach((row) => {
+        const count = parseFloat(row.querySelector('.count').value) || 0;
+        const basis = row.querySelector('.basis').value;
+        const rate = parseFloat(row.querySelector('.rate').value) || 0;
+        const shiftHours = parseFloat(row.querySelector('.shiftHours').value) || 0;
+
+        let roleCost = 0;
+        if (basis === 'hourly') roleCost = rate * shiftHours * workingDays * duration * count;
+        if (basis === 'daily') roleCost = rate * workingDays * duration * count;
+        if (basis === 'weekly') roleCost = rate * 4.333 * duration * count;
+        if (basis === 'monthly') roleCost = rate * duration * count;
+
+        staffingCost += roleCost;
+        row.querySelector('.rowCost').textContent = fmtMoney(roleCost);
+      });
+
+      const overheadsMonthly = getNum('overheadsMonthly');
+      const overheadsPercent = getNum('overheadsPercent');
+      const oneTimeExpenses = Array.from(oneTimeTable.querySelectorAll('.expenseAmount'))
+        .reduce((sum, el) => sum + (parseFloat(el.value) || 0), 0);
+
+      const monthlyOverheadsCost = overheadsMonthly * duration;
+      const percentOverheadsCost = staffingCost * (overheadsPercent / 100);
+      const totalExpenses = staffingCost + monthlyOverheadsCost + percentOverheadsCost + oneTimeExpenses;
+
+      const profitLoss = mepRevenue - totalExpenses;
+      const profitMargin = mepRevenue > 0 ? (profitLoss / mepRevenue) * 100 : 0;
+      const breakevenFee = projectCost > 0 ? (totalExpenses / projectCost) * 100 : 0;
+      const marginFactor = 1 - (targetMargin / 100);
+      const targetFee = (projectCost > 0 && marginFactor > 0) ? (totalExpenses / marginFactor) / projectCost * 100 : 0;
+
+      document.getElementById('projectCost').textContent = fmtMoney(projectCost);
+      document.getElementById('mepRevenue').textContent = fmtMoney(mepRevenue);
+      document.getElementById('totalExpenses').textContent = fmtMoney(totalExpenses);
+      document.getElementById('profitLoss').textContent = fmtMoney(profitLoss);
+      document.getElementById('profitMargin').textContent = fmtPct(profitMargin);
+      document.getElementById('breakevenFee').textContent = fmtPct(breakevenFee);
+      document.getElementById('targetFee').textContent = fmtPct(targetFee);
+
+      const status = document.getElementById('viabilityStatus');
+      if (profitLoss > 0 && profitMargin >= 15) {
+        status.className = 'status good';
+        status.textContent = '✅ Viable: Healthy margin (15%+).';
+      } else if (profitLoss > 0) {
+        status.className = 'status warn';
+        status.textContent = '⚠️ Marginally viable: Profit exists but margin is below 15%.';
+      } else {
+        status.className = 'status bad';
+        status.textContent = '❌ Not viable: Expenses exceed MEP revenue.';
+      }
+
+      lastSummary = { projectCost, mepRevenue, totalExpenses, profitLoss, profitMargin, breakevenFee, targetFee };
+    }
+
+    refreshScenarioSelect();
+    calculate();
+  </script>
+</body>
+</html>
